@@ -1,7 +1,6 @@
 /*
  * TPM_client.c
  *
- *  Created on: Nov 12, 2012
  *  Author: Turku TUAS
  */
 
