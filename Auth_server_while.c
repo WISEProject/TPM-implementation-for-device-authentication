@@ -1,6 +1,7 @@
 /*
  * Auth_server_while.c
  *
+ *  Created on: Dec 5, 2012
  *  Author: Turku TUAS
  */
 
@@ -94,7 +95,7 @@ int sendMessage(int socketfd, char* strSourceIP, char* strDestIP, int dwCommTYPE
 		exit(1);
 	}
 
-	//send the message succesfully
+	//send the message successfully
 	if(dwSendbytes == dwData_length) {
 		return 0;
 	}

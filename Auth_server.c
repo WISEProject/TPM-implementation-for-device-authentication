@@ -1,6 +1,7 @@
 /*
  * Auth_server.c
  *
+ *  Created on: Dec 5, 2012
  *  Author: Turku TUAS
  */
 
@@ -12,6 +13,7 @@
 #include <openssl/x509.h>
 #include <openssl/sha.h>
 #include <openssl/ui.h>
+#include <openssl/pem.h>
 
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -26,8 +28,8 @@
 #include <curl/curl.h>
 
 //Const
-#define RASERVERPORT	3333	// the num of RAServer port //
-#define BACKLOG 10				// the max num of connection //
+#define RASERVERPORT	3333	// port //
+#define BACKLOG 10				// max num of connection //
 
 //Communication Type
 #define COMM_REQ_CONNECT			0x00000001
@@ -45,7 +47,7 @@
 #define RA_RSP_ERROR_RECEIVEDATA	0x0000001C
 #define RA_RSP_ERROR_READDATA		0x0000001D
 
-// C-language does not have “primitive” byte type, so it is presentet as unsigned char
+// C-language does not have “primitive” byte type, so it is presented as unsigned char
 #ifndef BYTE
 #define BYTE unsigned char
 #endif
@@ -60,8 +62,8 @@
 
 #define BILLION  1000000000L;
 
-static const char *myIP = "192.168.43.251";
-static const char *destIP = "192.168.43.247";
+static const char *myIP = "10.10.64.78";
+static const char *destIP = "10.10.64.77";
 
 /**
  * Deal with the thread which has been ended
@@ -114,7 +116,7 @@ int initConnect(char * strSourceIP, char * strDestIP, int serverport)
 		return -1;
 	}
 
-	//creacte a socket
+	//create a socket
 	if((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) { 
 		printf("socket create error!\n");
 		return -1;
@@ -142,7 +144,7 @@ int receiveMessage(int socketfd, char* strSourceIP, int* dwCommTYPE, int * dwTra
 	//malloc some memory to receive the data
 	str_rcv_buf = (char *)malloc(65536);
 
-	//initializtion the receive buffer: str_rcv_buf
+	//Initialization the receive buffer: str_rcv_buf
 	memset(str_rcv_buf, 0, 65536);
 
 	if(str_rcv_buf == NULL) {
@@ -162,7 +164,7 @@ int receiveMessage(int socketfd, char* strSourceIP, int* dwCommTYPE, int * dwTra
 	memcpy(&dwdata_length, str_rcv_buf+36, 4);
 	
 	if(dwdata_length != dw_rec_length) {
-		printf("Recieved Data length error!\n");
+		printf("Received Data length error!\n");
 		return -3;		
 	}
 
@@ -255,7 +257,8 @@ int confirmQuote(char * quoteRSP, char * aik, char * challenge)
 		printf("Unable to open file aikrsa\n");
 		exit(1);
 	}
-	if ((aikRsa = PEM_read_RSA_PUBKEY(f_in, NULL, NULL, NULL)) == NULL) {
+	
+	if ((aikRsa = PEM_read_RSA_PUBKEY(f_in, NULL, NULL, NULL)) == 0) {
 		printf("Unable to read RSA file aikrsa\n");
 		exit(1);
 	}
@@ -321,17 +324,17 @@ int confirmQuote(char * quoteRSP, char * aik, char * challenge)
 int autoChallenge(void)
 {
 	
-	int			clientfd;
-	int			dwStatus = 0;
-	char		srcIP[16] = {0};
-	char		rcIP[16] = {0};
-	int			serverport = 3333;
-	FILE *tempTest;
-	char * buf_p;
-	int readsize = 0;
+	int		clientfd;
+	int		dwStatus = 0;
+	char	srcIP[16] = {0};
+	char	rcIP[16] = {0};
+	int		serverport = 3333;
+	FILE 	*tempTest;
+	char	* buf_p;
+	int 	readsize = 0;
 
-	FILE *counterFile;
-	char challenge[20];
+	FILE 	*counterFile;
+	char 	challenge[20];
 	
 	strcpy(srcIP, myIP);
 	strcpy(rcIP, destIP);
@@ -379,23 +382,23 @@ int main(void)
 {
 	printf("Starting...\n");
 	
-	int sock;
-	int sockfd;
-	int client_fd;
-	struct sockaddr_in sin;
-	struct ifreq ifr;
-	struct sockaddr_in my_addr;					// local ip imformation //
-	struct sockaddr_in remote_addr;				// client ip imformation // 
-	pid_t PID;
-	int type;
-	int readsize = 0;
-	char strRemoteIP[16];
-	char * buf_p;
-	char strMyIP[16] = {0};
-	int kkk = 0;
-	char challenge[20];
-	FILE *tempTest;
-	int i;
+	int 	sock;
+	int 	sockfd;
+	int 	client_fd;
+	struct 	sockaddr_in sin;
+	struct 	ifreq ifr;
+	struct 	sockaddr_in my_addr;	 // head unit IP information //
+	struct 	sockaddr_in remote_addr; // client IP information // 
+	pid_t 	PID;
+	int 	type;
+	int 	readsize = 0;
+	char 	strRemoteIP[16];
+	char 	*buf_p;
+	char 	strMyIP[16] = {0};
+	int 	kkk = 0;
+	char 	challenge[20];
+	FILE 	*tempTest;
+	int 	i;
 
 	FILE *counterFile;
 	
@@ -429,11 +432,6 @@ int main(void)
 		failhandler("====== Server Listen error! ======\n");
 	}
 	
-//	clock_t startClock = clock();
-	struct timespec aika, loppu;
-	clock_gettime(CLOCK_REALTIME, &aika);
-//	printf("%ld", (startClock / CLOCKS_PER_SEC));
-	
 	//Loop operation
 	while(1) {
 		
@@ -443,13 +441,13 @@ int main(void)
 			failhandler("====== Server Accept error! ======\n");
 		}
 		
-		printf("\n--> --> Received a connection from: %s\n", inet_ntoa(remote_addr.sin_addr)); // TODO
+		printf("\n--> --> Received a connection from: %s\n", inet_ntoa(remote_addr.sin_addr));
 		
 		//create a new tenor request
 		if((PID = fork()) == -1) {
 
 			//child process create error
-			printf("====== Fork a child proess fail! ======\n");
+			printf("====== Fork a child process fail! ======\n");
 			close(client_fd);
 			continue;
 		} else if (PID > 0) {
@@ -459,7 +457,7 @@ int main(void)
 		}
 		
 		/*
-		 *		Successfully generate a child process for a connection.
+		 *	Successfully generate a child process for a connection.
 		 */
 		else {
 			
@@ -467,7 +465,7 @@ int main(void)
 			if(receiveMessage(client_fd, strRemoteIP, &type, &readsize, &buf_p) > 4) {
 				printf("====== Receive error! ======\n");
 				if (0 != sendMessage(client_fd, strMyIP,strRemoteIP, RA_RSP_ERROR_RECEIVEDATA, 0, NULL)) {
-					printf("====== Send Response messeage to RAClient Failed! ======\n");
+					printf("====== Send Response message to Client Failed! ======\n");
 					close(client_fd);
 					continue;
 				}
@@ -478,13 +476,12 @@ int main(void)
 			if(readsize < 0) {
 				printf("====== The type of the connection is: %d. =====\n", type);
 				printf("====== Read error! ======\n");
-				printf("====== Readsize < 0, readsize is :%d ======\n",readsize);
 
 				if (buf_p != NULL) {
 					free(buf_p);
 				}
 				if (0 != sendMessage(client_fd, strMyIP, strRemoteIP, RA_RSP_ERROR_READDATA, 0,NULL)) {
-					printf("====== Send Response messeage to RAClient Failed! ======\n");
+					printf("====== Send Response message to Client Failed! ======\n");
 					close(client_fd);
 					exit(0);
 					continue;
@@ -503,19 +500,19 @@ int main(void)
 					break;
 				
 				case COMM_REQ_CONNECT:
-					printf("\n--> --> Received a connection from: Radio microphone\n"); // TODO
+					printf("\n--> --> Received a connection from: Radio microphone\n");
 					if (0 != sendMessage(client_fd, strMyIP,strRemoteIP, COMM_RSP_ALLOW, 0, NULL)) {
-						printf("====== Send Response messeage to RAClient Failed! ======\n");
+						printf("====== Send Response message to Client Failed! ======\n");
 						close(client_fd);
 						exit(0);
 						continue;
 					} else {
-						printf("\033[01;34m====== Send Message: Connection is OK! ======\033[01;37m\n"); // TODO
+						printf("\033[01;34m====== Send Message: Connection is OK! ======\033[01;37m\n");
 					}
 					break;
 				
 				case COMM_PUB_AIK_ENROLLMENT:
-					printf("\n--> --> Received a connection from: Radio microphone\n"); // TODO
+					printf("\n--> --> Received a connection from: Radio microphone\n");
 					
 					tempTest = fopen("aikTEMP", "wb");
 					fwrite(buf_p, 1, readsize, tempTest);
@@ -530,20 +527,20 @@ int main(void)
 					fwrite(&counter, sizeof(int), 1, counterFile);
 					
 					if (0 != sendMessage(client_fd, strMyIP, strRemoteIP, COMM_REQ_CHALLENGE, strlen(challenge), challenge)) {
-						printf("====== Send Response messeage to RAClient Failed! ======\n");
+						printf("====== Send Response message to Client Failed! ======\n");
 						close(client_fd);
 						exit(0);
 						continue;
 					} else {
-						printf("\033[22;32m====== Send Message: AIK enrollment is OK! ======\033[01;37m\n"); // TODO
+						printf("\033[22;32m====== Send Message: AIK enrollment is OK! ======\033[01;37m\n");
 						printf("\033[01;33m====== Send Message: Challenge text ======\033[01;37m\n");
 					}
 					
 					break;
 			
 				case COMM_RSP_CHALLENGE:
-					printf("\n--> --> Received a connection from: Radio microphone\n"); // TODO
-					printf("\033[01;33m====== Received Message: Quote result ======\033[01;37m\n"); // TODO
+					printf("\n--> --> Received a connection from: Radio microphone\n");
+					printf("\033[01;33m====== Received Message: Quote result ======\033[01;37m\n");
 		
 					if((counterFile = fopen("/tmp/counterText", "rb")) == NULL)
 						printf("fail\n");
@@ -555,21 +552,21 @@ int main(void)
 						printf("Quote confirm failed\n");
 						
 						if (0 != sendMessage(client_fd, strMyIP,strRemoteIP, COMM_QUOTE_FAILED, 0, NULL)) {
-							printf("====== Send Response messeage to RAClient Failed! ======\n");
+							printf("====== Send Response message to Client Failed! ======\n");
 							close(client_fd);
 							exit(0);
 							continue;
 						}
 					} else {
-						printf("\033[22;32m====== Quote confirm success ======\033[01;37m\n"); // TODO 
+						printf("\033[22;32m====== Quote confirm success ======\033[01;37m\n");
 						
 						if (0 != sendMessage(client_fd, strMyIP,strRemoteIP, COMM_QUOTE_SUCCESS, 0, NULL)) {
-							printf("====== Send Response messeage to RAClient Failed! ======\n");
+							printf("====== Send Response message to Client Failed! ======\n");
 							close(client_fd);
 							exit(0);
 							continue;
 						} else {
-							printf("\033[22;32m====== Send Message: Quote is OK! ======\033[01;37m\n"); // TODO
+							printf("\033[22;32m====== Send Message: Quote is OK! ======\033[01;37m\n");
 						}
 						
 						
@@ -580,7 +577,7 @@ int main(void)
 					break;
 					
 				case COMM_TURNED_ON:
-					printf("\n--> --> Received a connection from: Radio microphone\n"); // TODO
+					printf("\n--> --> Received a connection from: Radio microphone\n");
 						
 						if(counter++ >= 250) counter = 0;
 						sprintf(challenge, "%02Xkoivu", counter);
@@ -591,7 +588,7 @@ int main(void)
 						fwrite(&counter, sizeof(int), 1, counterFile);
 						fclose(counterFile);
 						if (0 != sendMessage(client_fd, strMyIP,strRemoteIP, COMM_REQ_CHALLENGE, strlen(challenge), challenge)) {
-							printf("====== Send Response messeage to RAClient Failed! ======\n");
+							printf("====== Send Response message to Client Failed! ======\n");
 							close(client_fd);
 							exit(0);
 							continue;
