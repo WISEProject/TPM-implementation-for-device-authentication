@@ -28,8 +28,8 @@
 #include <curl/curl.h>
 
 //Const
-#define RASERVERPORT	3333	// port //
-#define BACKLOG 10				// max num of connection //
+#define SERVERPORT	3333	// port //
+#define BACKLOG 10			// max num of connection //
 
 //Communication Type
 #define COMM_REQ_CONNECT			0x00000001
@@ -44,8 +44,8 @@
 
 #define COMM_WHILE	0x00000011
 
-#define RA_RSP_ERROR_RECEIVEDATA	0x0000001C
-#define RA_RSP_ERROR_READDATA		0x0000001D
+#define ERROR_RECEIVEDATA	0x0000001C
+#define ERROR_READDATA		0x0000001D
 
 // C-language does not have “primitive” byte type, so it is presented as unsigned char
 #ifndef BYTE
@@ -63,7 +63,7 @@
 #define BILLION  1000000000L;
 
 static const char *myIP = "10.10.64.78";
-static const char *destIP = "10.10.64.77";
+static const char *destIP = "10.10.64.77";	// TPM Client IP
 
 /**
  * Deal with the thread which has been ended
@@ -81,20 +81,6 @@ static void sigchld_handler(int signo)
 }
 
 /**
- * 
- */
-static void failhandler(const char * on_what)
-{
-	if (errno != 0) {
-		fputs(strerror(errno),stderr);
-		fputs(":",stderr);
-	}
-	fputs(on_what,stderr);
-	fputc('\n',stderr);
-	exit(1);
-}
-
-/**
  * Initialize connection to head unit
  */
 int initConnect(char * strSourceIP, char * strDestIP, int serverport)
@@ -102,32 +88,32 @@ int initConnect(char * strSourceIP, char * strDestIP, int serverport)
 	int sockfd;
 	struct sockaddr_in source_addr,dest_addr;
 
-	//get the sourceip
+	// Get the source IP
 	source_addr.sin_addr.s_addr = inet_addr(strSourceIP);
 	if(source_addr.sin_addr.s_addr == INADDR_NONE) {
-		printf("sourcename is unavailable!\n");
+		printf("source name is unavailable!\n");
 		return -1;
 	}
 
-	//get the destip
+	// Get the dest IP
 	dest_addr.sin_addr.s_addr = inet_addr(strDestIP);
 	if(dest_addr.sin_addr.s_addr == INADDR_NONE) {
-		printf("destname is unavailable!\n");
+		printf("dest name is unavailable!\n");
 		return -1;
 	}
 
-	//create a socket
+	// Create a socket
 	if((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) { 
 		printf("socket create error!\n");
 		return -1;
 	}
 	
-	//set the address of dest
+	// Set the address of dest
 	dest_addr.sin_family = AF_INET;
 	dest_addr.sin_port = htons(serverport);
 	bzero(&(dest_addr.sin_zero),8); 
 
-	//connect the sourceip and destip
+	// Connect the source IP and dest IP
 	if(connect(sockfd, (struct sockaddr *)&dest_addr,sizeof(struct sockaddr)) != 0) {
 //		printf("connection error!\n ");
 		return -1;
@@ -141,10 +127,10 @@ int receiveMessage(int socketfd, char* strSourceIP, int* dwCommTYPE, int * dwTra
 	char * str_rcv_buf;
 	int dw_rec_length, dwdata_length, type;
 
-	//malloc some memory to receive the data
+	// Malloc some memory to receive the data
 	str_rcv_buf = (char *)malloc(65536);
 
-	//Initialization the receive buffer: str_rcv_buf
+	// Initialization the receive buffer: str_rcv_buf
 	memset(str_rcv_buf, 0, 65536);
 
 	if(str_rcv_buf == NULL) {
@@ -152,13 +138,13 @@ int receiveMessage(int socketfd, char* strSourceIP, int* dwCommTYPE, int * dwTra
 		return -1;
 	}
 
-	//receive the data from sourceIP
+	// Receive the data from sourceIP
 	if((dw_rec_length = recv(socketfd, str_rcv_buf, 65536, 0)) == -1)  {
 		printf("Receive error!\n");
 		return -2;
 	}
 	
-	//copy the sourceIP & translength & data from the buf
+	// Copy the sourceIP & translength & data from the buf
 	memcpy(strSourceIP, str_rcv_buf, 16);
 	memcpy(&type, str_rcv_buf+32, 4);
 	memcpy(&dwdata_length, str_rcv_buf+36, 4);
@@ -185,12 +171,12 @@ int sendMessage(int socketfd, char* strSourceIP, char* strDestIP, int dwCommTYPE
 	int dwSendbytes,dwData_type,dwData_length;
 	char str_send_buf[65536];
 
-	//switch the type of the data
+	// Switch the type of the data
 
-	//compute the whole length of the data and the head
+	// Compute the whole length of the data and the head
 	dwData_length = dwTransLength+40;
 
-	//write the head to the data
+	// Write the head to the data
 	memset(str_send_buf,0,65536);
 	
 	memcpy(str_send_buf,strSourceIP,16);
@@ -201,14 +187,14 @@ int sendMessage(int socketfd, char* strSourceIP, char* strDestIP, int dwCommTYPE
 		memcpy(str_send_buf+40,rgbBuffer,dwTransLength);
 	}
 	
-	//send the message
+	// Send the message
 	if((dwSendbytes=send(socketfd, str_send_buf, dwData_length, 0)) ==-1)  {
 		printf("Send error!\n");
 		return -2;
 //		exit(1);
 	}
 
-	//send the message succesfully
+	// Send the message successfully
 	if(dwSendbytes == dwData_length) {
 		return 0;
 	}
@@ -328,7 +314,7 @@ int autoChallenge(void)
 	int		dwStatus = 0;
 	char	srcIP[16] = {0};
 	char	rcIP[16] = {0};
-	int		serverport = 3333;
+	int		serverport = SERVERPORT;
 	FILE 	*tempTest;
 	char	* buf_p;
 	int 	readsize = 0;
@@ -387,8 +373,8 @@ int main(void)
 	int 	client_fd;
 	struct 	sockaddr_in sin;
 	struct 	ifreq ifr;
-	struct 	sockaddr_in my_addr;	 // head unit IP information //
-	struct 	sockaddr_in remote_addr; // client IP information // 
+	struct 	sockaddr_in my_addr;	 // Gead unit IP information
+	struct 	sockaddr_in remote_addr; // Client IP information
 	pid_t 	PID;
 	int 	type;
 	int 	readsize = 0;
@@ -404,49 +390,49 @@ int main(void)
 	
 	strcpy(strMyIP, myIP);
 	
-	//catch the SIGCHLD
+	// Catch the SIGCHLD
 	signal(SIGCHLD, sigchld_handler);
 	
 	printf("Starting to listen something from a network\n");
 	
-	//Create the socket
+	// Create the socket
 	my_addr.sin_family = AF_INET;
-	my_addr.sin_port = htons(RASERVERPORT);
+	my_addr.sin_port = htons(SERVERPORT);
 	my_addr.sin_addr.s_addr = INADDR_ANY;
 	bzero(&(my_addr.sin_zero), sizeof(my_addr.sin_zero));
 	if((sockfd = socket(AF_INET, SOCK_STREAM,0)) < 0) {
-		failhandler("====== Server Create Socket error! ======\n");
+		printf("====== Server Create Socket error! ======\n");
 	}
 	
-	//If the port is already used, then these two lines will make the port useable.
+	// If the port is already used, then these two lines will make the port usable.
 	struct linger sopt = {1, 0};
 	setsockopt(sockfd, SOL_SOCKET, SO_LINGER, (void *)&sopt, sizeof(sopt));
 	
-	//Bind
+	// Bind
 	if(bind(sockfd,(struct sockaddr *)&my_addr,sizeof(my_addr))==-1) {
-		failhandler("====== Server Bind error! ======\n");
+		printf("====== Server Bind error! ======\n");
 	} 
 	
-	//Listen
+	// Listen
 	if(listen(sockfd, BACKLOG) == -1) {
-		failhandler("====== Server Listen error! ======\n");
+		printf("====== Server Listen error! ======\n");
 	}
 	
-	//Loop operation
+	// Loop operation
 	while(1) {
 		
-		//Accept return a new socket which communicate with client
+		// Accept return a new socket which communicate with client
 		socklen_t length = sizeof(remote_addr);
 		if ((client_fd = accept(sockfd, (struct sockaddr *)&remote_addr, &length)) < 0) {
-			failhandler("====== Server Accept error! ======\n");
+			printf("====== Server Accept error! ======\n");
 		}
 		
 		printf("\n--> --> Received a connection from: %s\n", inet_ntoa(remote_addr.sin_addr));
 		
-		//create a new tenor request
+		// Create a new tenor request
 		if((PID = fork()) == -1) {
 
-			//child process create error
+			// Child process create error
 			printf("====== Fork a child process fail! ======\n");
 			close(client_fd);
 			continue;
@@ -461,10 +447,10 @@ int main(void)
 		 */
 		else {
 			
-			//	son tenor to deal with request
+			//	Son tenor to deal with request
 			if(receiveMessage(client_fd, strRemoteIP, &type, &readsize, &buf_p) > 4) {
 				printf("====== Receive error! ======\n");
-				if (0 != sendMessage(client_fd, strMyIP,strRemoteIP, RA_RSP_ERROR_RECEIVEDATA, 0, NULL)) {
+				if (0 != sendMessage(client_fd, strMyIP,strRemoteIP, ERROR_RECEIVEDATA, 0, NULL)) {
 					printf("====== Send Response message to Client Failed! ======\n");
 					close(client_fd);
 					continue;
@@ -480,7 +466,7 @@ int main(void)
 				if (buf_p != NULL) {
 					free(buf_p);
 				}
-				if (0 != sendMessage(client_fd, strMyIP, strRemoteIP, RA_RSP_ERROR_READDATA, 0,NULL)) {
+				if (0 != sendMessage(client_fd, strMyIP, strRemoteIP, ERROR_READDATA, 0,NULL)) {
 					printf("====== Send Response message to Client Failed! ======\n");
 					close(client_fd);
 					exit(0);
@@ -604,7 +590,7 @@ int main(void)
 			
 			close(client_fd);
 			exit(0);
-		} // else 
+		} // Else 
 		
 	} // While
 	

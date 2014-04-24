@@ -1,6 +1,7 @@
 /*
  * TPM_client.c
  *
+ *  Created on: Nov 12, 2012
  *  Author: Turku TUAS
  */
 
@@ -42,20 +43,23 @@
 #define COMM_QUOTE_FAILED			0x00000008 // Quote is invalid
 #define COMM_TURNED_ON				0x00000009 // TPM Client is turned on
 
-#define RA_RSP_ERROR_RECEIVEDATA	0x0000001C
-#define RA_RSP_ERROR_READDATA		0x0000001D
+#define ERROR_RECEIVEDATA	0x0000001C
+#define ERROR_READDATA		0x0000001D
 
 #define CKERR	if (result != TSS_SUCCESS) goto error
 
-// Sets IP addresses for communtion. Setting this way IP addesses is not ideal, but works well.
+#define SERVERPORT	3333	// Server port
+#define BACKLOG		10		// max num of connection
+
+// Sets IP addresses for communication. Setting this way IP addresses is not ideal, but works well.
 // Setting IP addresses can do via main function arguments and that will be next thing to do.
-static const char *myIP = "192.168.43.247";		// TPM client IP address
-static const char *destIP = "192.168.43.251";	// Auth server IP address
+static const char *myIP = "10.10.64.77";	// TPM client IP address
+static const char *destIP = "10.10.64.78";	// Auth server IP address
 
 /**
- * Initialize connection to the server and return socked ID.
+ * Initialise connection to the server and return socked ID.
  */
-int initConnect(char * strSourceIP, char * strDestIP, int serverport) // TODO
+int initConnect(char * strSourceIP, char * strDestIP, int serverport)
 {
 	int sockfd;
 	struct sockaddr_in source_addr,dest_addr;
@@ -63,18 +67,18 @@ int initConnect(char * strSourceIP, char * strDestIP, int serverport) // TODO
 	// Get the source ip
 	source_addr.sin_addr.s_addr = inet_addr(strSourceIP);
 	if(source_addr.sin_addr.s_addr == INADDR_NONE) {
-		printf("sourcename is unavailable!\n");
+		printf("source name is unavailable!\n");
 		return -1;
 	}
 
 	// Get the destination ip
 	dest_addr.sin_addr.s_addr = inet_addr(strDestIP);
 	if(dest_addr.sin_addr.s_addr == INADDR_NONE) {
-		printf("destname is unavailable!\n");
+		printf("dest name is unavailable!\n");
 		return -1;
 	}
 
-	// Creacte a socket
+	// Create a socket
 	if((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) { 
 		printf("socket create error!\n");
 		return -1;
@@ -97,10 +101,10 @@ int initConnect(char * strSourceIP, char * strDestIP, int serverport) // TODO
 /**
  * Send data to server
  */
-int sendMessage(int socketfd, char* strSourceIP, char* strDestIP, int dwCommTYPE, int dwTransLength, char * rgbBuffer) // TODO
+int sendMessage(int socketfd, char* strSourceIP, char* strDestIP, int dwCommTYPE, int dwTransLength, char * rgbBuffer)
 {
 	int dwSendbytes, dwData_type, dwData_length;
-	char str_send_buf[65536]; // Max data lenght
+	char str_send_buf[65536]; // Max data length
 	
 	// Compute the whole length of the data and the head
 	dwData_length = dwTransLength + 40;
@@ -114,7 +118,7 @@ int sendMessage(int socketfd, char* strSourceIP, char* strDestIP, int dwCommTYPE
 	memcpy(str_send_buf+32,&dwCommTYPE,4);
 	memcpy(str_send_buf+36,&dwData_length,4);
 	
-	// Checks is data buuf valid for sending
+	// Checks is data buff valid for sending
 	if((dwTransLength != 0) && (rgbBuffer != NULL)) {
 		memcpy(str_send_buf+40, rgbBuffer, dwTransLength);
 	}
@@ -125,7 +129,7 @@ int sendMessage(int socketfd, char* strSourceIP, char* strDestIP, int dwCommTYPE
 		return -2;
 	}
 
-	// Checks did data sent succesfully
+	// Checks did data sent successfully
 	if(dwSendbytes == dwData_length) {
 		return 0;
 	} else {
@@ -136,7 +140,7 @@ int sendMessage(int socketfd, char* strSourceIP, char* strDestIP, int dwCommTYPE
 /**
  * Handler received data from server.
  */
-int receiveMessage(int socketfd, char* strSourceIP, int* dwCommTYPE, int * dwTransLength, char * * prgbBuffer) // TODO
+int receiveMessage(int socketfd, char* strSourceIP, int* dwCommTYPE, int * dwTransLength, char * * prgbBuffer)
 {
 	char *	str_rcv_buf;
 	char *	ipg;
@@ -146,7 +150,7 @@ int receiveMessage(int socketfd, char* strSourceIP, int* dwCommTYPE, int * dwTra
 	// Malloc some memory to receive the data
 	str_rcv_buf = (char *)malloc(65536);
 
-	// Initializtion the receive buffer: str_rcv_buf
+	// Initialisation the receive buffer: str_rcv_buf
 	memset(str_rcv_buf, 0, 65536);
 
 	if(str_rcv_buf == NULL) {
@@ -167,9 +171,9 @@ int receiveMessage(int socketfd, char* strSourceIP, int* dwCommTYPE, int * dwTra
 	// Copy data
 	memcpy(&dwdata_length, str_rcv_buf+36, 4);
 	
-	// Check does reveiced data lenght same what server sed it to be
+	// Check does received data length same what server said it to be
 	if(dwdata_length != dw_rec_length) {
-		printf("Recieved Data length error!\n");
+		printf("Received Data length error!\n");
 		return -3;		
 	}
 	
@@ -188,7 +192,7 @@ int receiveMessage(int socketfd, char* strSourceIP, int* dwCommTYPE, int * dwTra
 
 /**
  * This function generates attestation identity key.
- * Private and public AIK are returned via paramiter pointers.
+ * Private and public AIK are returned via parameter pointers.
  */
 int getAIK(int * pAIKLen, unsigned char * * publicAIK) {
 	
@@ -201,11 +205,11 @@ int getAIK(int * pAIKLen, unsigned char * * publicAIK) {
 	TSS_HPOLICY		hTPMPolicy;	// Policy object handle
 	TSS_UUID		SRK_UUID = TSS_UUID_SRK;	// TPM address id/location in TPM
 	int				result = 0;	// TPM function return code
-	UINT32			initFlags = TSS_KEY_TYPE_IDENTITY | TSS_KEY_SIZE_2048  | TSS_KEY_VOLATILE | TSS_KEY_NOT_MIGRATABLE; // TODO
+	UINT32			initFlags = TSS_KEY_TYPE_IDENTITY | TSS_KEY_SIZE_2048  | TSS_KEY_VOLATILE | TSS_KEY_NOT_MIGRATABLE;
 	BYTE			n[AIK_KEY_SIZE];	// TPM supports 2048 length RSA keys
 	BYTE			*labelString;		// Secret label
 	UINT32			labelLen;			// Length of the labelString
-	BYTE			*rgbIdentityLabelData;		// This conctains password in byte format. (This will be kinda empty because we asume no secret has set)
+	BYTE			*rgbIdentityLabelData;		// This contains password in byte format. (This will be kinda empty because we assume no secret has set)
 	UINT32			ulTCPAIdentityReqLength;	// Length of the identity label data
 	BYTE			*rgbTCPAIdentityReq;		// 
 	BYTE			*blob;						// Binary object, TPM handle only binary data
@@ -299,7 +303,7 @@ int getAIK(int * pAIKLen, unsigned char * * publicAIK) {
 		// printf("Tspi_Context_CreateObject (hIdentKey) success\n");
 	}
 	
-	// Creates PCA key contect object
+	// Creates PCA key context object
 	result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_RSAKEY, TSS_KEY_TYPE_LEGACY|TSS_KEY_SIZE_2048, &hPCAKey);
 	if (result != TSS_SUCCESS) {
 		printf ("Error 0x%x on Tspi_Context_CreateObject for PCA\n", result);
@@ -307,7 +311,7 @@ int getAIK(int * pAIKLen, unsigned char * * publicAIK) {
 		// printf("Tspi_Context_CreateObject (hPCAKey) success\n");
 	}
 	
-	// Remember aik key size
+	// Remember AIK key size
 	memset (n, 0xff, sizeof(n));
 	// Sets/defines size of the key and its modulus.
 	result = Tspi_SetAttribData (hPCAKey, TSS_TSPATTRIB_RSAKEY_INFO, TSS_TSPATTRIB_KEYINFO_RSA_MODULUS, sizeof(n), n);
@@ -320,7 +324,7 @@ int getAIK(int * pAIKLen, unsigned char * * publicAIK) {
 	// Sets/defines type of the key (RSA PKCS V15)
 	result = Tspi_SetAttribUint32(hPCAKey, TSS_TSPATTRIB_KEY_INFO, TSS_TSPATTRIB_KEYINFO_ENCSCHEME, TSS_ES_RSAESPKCSV15);
 	if (result != TSS_SUCCESS) {
-		printf ("Error 0x%x on Tspi_SetAttribUint32 for PCA encscheme\n", result);
+		printf ("Error 0x%x on Tspi_SetAttribUint32 for PCA \n", result);
 	} else {
 		// printf("Tspi_SetAttribUint32 (hPCAKey) success\n");
 	}
@@ -412,7 +416,7 @@ int getAIK(int * pAIKLen, unsigned char * * publicAIK) {
  * Digest value is 20 bit length.
  * C-language does not have a standard library for hashing so we can use TPM for hashing.
  */
-static void sha1(TSS_HCONTEXT hContext, void *buf, UINT32 bufLen, BYTE *digest) // TODO
+static void sha1(TSS_HCONTEXT hContext, void *buf, UINT32 bufLen, BYTE *digest)
 {
 	TSS_HHASH	hHash;
 	BYTE		*tmpbuf;
@@ -427,7 +431,7 @@ static void sha1(TSS_HCONTEXT hContext, void *buf, UINT32 bufLen, BYTE *digest) 
 }
 
 /**
- * 
+ * Make quote
  */
 int quote(int chalLen, unsigned char * challenge, int * quoteLen, unsigned char * * quoteBuf) 
 {
@@ -446,7 +450,7 @@ int quote(int chalLen, unsigned char * challenge, int * quoteLen, unsigned char 
 	FILE			*f_in;		// Read from file
 	FILE			*f_out;		// Write to file
 	UINT32			tpmProp;	// TPM Capability properties request value code
-	UINT32			npcrMax;	// Count how many pcr register slots TPM have
+	UINT32			npcrMax;	// Count how many PCR register slots TPM have
 	UINT32			npcrBytes;	// TPM PCR values
 	BYTE			*buf;		// Data buffer variable
 	UINT32			bufLen;		// Data buffer length
@@ -515,7 +519,7 @@ int quote(int chalLen, unsigned char * challenge, int * quoteLen, unsigned char 
 	// Create PCRs struct object.
 	result = Tspi_Context_CreateObject(hContext, TSS_OBJECT_TYPE_PCRS, TSS_PCRS_STRUCT_INFO, &hPCRs); CKERR;
 	
-	// Initialize the buffer variable array length for later use.
+	// Initialise the buffer variable array length for later use.
 	// This will be used for quote validation.
 	buf = malloc (2 + npcrBytes + 4 + 20 * npcrMax);
 	*(UINT16 *)buf = htons(npcrBytes);
@@ -617,7 +621,7 @@ int quote(int chalLen, unsigned char * challenge, int * quoteLen, unsigned char 
 /**
  * Deal with the thread which has been ended
  */
-static void sigchld_handler(int signo) // TODO 
+static void sigchld_handler(int signo)
 {
 	pid_t PID;
 	int status;
@@ -630,20 +634,6 @@ static void sigchld_handler(int signo) // TODO
 }
 
 /**
- * Deal with error and return shell
- */
-static void failhandler(const char * on_what) // TODO
-{
-	if (errno!=0) {
-		fputs(strerror(errno),stderr);
-		fputs(":",stderr);
-	}
-	fputs(on_what,stderr);
-	fputc('\n',stderr);
-	exit(1);
-}
-
-/**
  * This function is executed when the server challenging TPM Client.
  * This function opens new connection to the server.
  */
@@ -651,9 +641,9 @@ int newChallengeConnect(int chalLen, unsigned char * challenge)
 {
 	int		clientfd;				// Connection session id with server
 	char	tpmClientIP[16] = {0};	// TPM Client ip address
-	char	serverIP[16] = {0};		// Server ip address
-	int		serverport = 3333;		// Network port
-	int		i;						// Foor loop iteration count
+	char	serverIP[16] = {0};		// Server IP address
+	int		serverport = SERVERPORT;		// Network port
+	int		i;						// Floor loop iteration count
 	
 	int				quoteLen;	// Length of the quote data
 	unsigned char * quoteBuf;	// Quote data, but this data is broken atm
@@ -662,7 +652,7 @@ int newChallengeConnect(int chalLen, unsigned char * challenge)
 	unsigned char	*buf;		// Quote data
 	
 	char	*buf_str;	// This will contain quote data in hex-format.
-	char	*buf_ptr;	// Used for printing quote to a linux terminal.
+	char	*buf_ptr;	// Used for printing quote.
 	int		size;				
 	
 	strcpy(tpmClientIP, myIP);
@@ -670,8 +660,8 @@ int newChallengeConnect(int chalLen, unsigned char * challenge)
 	
 	
 	printf("===== Received message from HEAD UNIT: Challenge requested =====\n");
-	
-	// quoteBuff is not atm used because quote data will broke if it is copyed to new location.
+	printf("\033[01;34m ===== Challenge string: %s ======\033[01;37m\n", challenge);	
+	// quoteBuff is not atm used because quote data will broke if it is copied to new location.
 	// There for quote is saved to the file in quote-function and read from there in this function.
 	if(0 == quote(chalLen, challenge, &quoteLen, &quoteBuf)) {
 		if((testFile = fopen("quote_file.quote", "rb")) == NULL) {
@@ -687,14 +677,24 @@ int newChallengeConnect(int chalLen, unsigned char * challenge)
 		}
 		fclose (testFile);
 		
-		// Print quote data to the linux terminal in hex-format
+		// Print quote data in hex-format
 		size = sizeof(buf) / sizeof(char);
 		size = bufLen;
 		buf_str = (char*) malloc(2 * size + 1), buf_ptr = buf_str;
 		if (buf_str) {
 			for (i = 0; i < size; i++) {
 				buf_ptr += sprintf(buf_ptr, "%02X", buf[i]);
+				printf("%02X", buf[i]);
+				if(i%15 == 1 && i != 1) {
+					printf("%02X ", buf[i]);
+        	                        printf("\n");
+	                        } else {
+					printf("%02X ", buf[i]);
+				}
+				
+				
 			}
+			printf("\n");
 		}
 	} else {
 		printf("Quote failed");
@@ -707,9 +707,9 @@ int newChallengeConnect(int chalLen, unsigned char * challenge)
 	} else {
 		// Send the quote data to the server.
 		if (0 != sendMessage(clientfd, tpmClientIP,serverIP, COMM_RSP_CHALLENGE, strlen(buf_str), buf_str)) {
-			printf("\033[01;33m====== Send Messeage to HEAD UNIT: failed ======\033[01;37m\n");
+			printf("\033[01;33m====== Send Message to HEAD UNIT: failed ======\033[01;37m\n");
 		} else {
-			printf("\033[01;33m====== Send Messeage to HEAD UNIT: Quote result ======\033[01;37m\n");
+			printf("\033[01;33m====== Send Message to HEAD UNIT: Quote result ======\033[01;37m\n");
 		}
 	}
 	
@@ -719,26 +719,22 @@ int newChallengeConnect(int chalLen, unsigned char * challenge)
 	return 0;
 }
 
-// Const
-#define RASERVERPORT	3333	// the number of Server port
-#define BACKLOG			10		// the max num of connection
-
 /**
  * Loop mode is for server communication. TPM Client will wait request from server.
- * Server will challenge the TPM Client to asure the TPM Client is on.
+ * Server will challenge the TPM Client to assure the TPM Client is on.
  */
 int loopMode() 
 {
 	int		sockfd;
 	int		client_fd;					// Connection session id with server
-	struct	sockaddr_in my_addr;		// TPM Client ip information
-	struct	sockaddr_in remote_addr;	// Server ip imformation
-	pid_t	PID;						// Linux process id
+	struct	sockaddr_in my_addr;		// TPM Client IP information
+	struct	sockaddr_in remote_addr;	// Server IP information
+	pid_t	PID;						// Process id
 	int		type;						// Received connection type
 	int		readsize = 0;				// Length of the received data
 	char	strRemoteIP[16];
 	char *	buf_p;
-	char	strMyIP[16] = {0};			// TPM Client ip address
+	char	strMyIP[16] = {0};			// TPM Client IP address
 	FILE	*tempTest;
 	int		i;							// For loop iteration count
 	
@@ -751,25 +747,25 @@ int loopMode()
 	
 	// Create the socket
 	my_addr.sin_family = AF_INET;
-	my_addr.sin_port = htons(RASERVERPORT);
+	my_addr.sin_port = htons(SERVERPORT);
 	my_addr.sin_addr.s_addr = INADDR_ANY;
 	bzero(&(my_addr.sin_zero), sizeof(my_addr.sin_zero));
 	if((sockfd = socket(AF_INET, SOCK_STREAM,0)) < 0) {
-		failhandler("====== Server Create Socket error! ======\n");
+		printf("====== Server Create Socket error! ======\n");
 	}
 	
-	// If the port is already used, then these two lines will make the port useable.
+	// If the port is already used, then these two lines will make the port usable.
 	struct linger sopt = {1, 0};
 	setsockopt(sockfd, SOL_SOCKET, SO_LINGER, (void *)&sopt, sizeof(sopt));
 	
 	// Bind
 	if(bind(sockfd,(struct sockaddr *)&my_addr,sizeof(my_addr))==-1) {
-		failhandler("====== Server Bind error! ======\n");
+		printf("====== Server Bind error! ======\n");
 	} 
 	
 	// Listen
 	if(listen(sockfd, BACKLOG) == -1) {
-		failhandler("====== Server Listen error! ======\n");
+		printf("====== Server Listen error! ======\n");
 	}
 	
 	// Loop operation for different connection types
@@ -778,7 +774,7 @@ int loopMode()
 		// Accept return a new socket which communicate with client
 		socklen_t length = sizeof(remote_addr);
 		if ((client_fd = accept(sockfd, (struct sockaddr *)&remote_addr, &length)) < 0) {
-			failhandler("====== Server Accept error! ======\n");
+			printf("====== Server Accept error! ======\n");
 		} else {
 			
 		}
@@ -786,11 +782,11 @@ int loopMode()
 		// Create a new tenor request
 		if((PID = fork()) == -1) {
 			printf("====== Create child process fail! ======\n");
-			// Close connection session to the server before it actualy started.
+			// Close connection session to the server before it actually started.
 			close(client_fd);
 			continue;
 		} else if (PID > 0) {
-			// Parent tenor deal, close connection session to the server before it actualy started.
+			// Parent tenor deal, close connection session to the server before it actually started.
 			close(client_fd);
 			continue;
 		}
@@ -803,8 +799,8 @@ int loopMode()
 				printf("====== Receive error! ======\n");
 				
 				// Send data receive error message to the server.
-				if (0 != sendMessage(client_fd, strMyIP,strRemoteIP, RA_RSP_ERROR_RECEIVEDATA, 0, NULL)) {
-					printf("====== Send Response messeage to RAClient Failed! ======\n");
+				if (0 != sendMessage(client_fd, strMyIP,strRemoteIP, ERROR_RECEIVEDATA, 0, NULL)) {
+					printf("====== Send Response message to Server Failed! ======\n");
 					close(client_fd);
 					continue;
 				}
@@ -817,14 +813,13 @@ int loopMode()
 			if(readsize < 0) {
 				printf("====== The type of the connection is: %d. =====\n", type);
 				printf("====== Read error! ======\n");
-				printf("====== Readsize < 0, readsize is :%d ======\n",readsize);
 				
 				if (buf_p != NULL) {
 					free(buf_p);
 				}
 				// Send data receive error message to the server.
-				if (0 != sendMessage(client_fd, strMyIP,strRemoteIP, RA_RSP_ERROR_READDATA, 0,NULL)) {
-					printf("====== Send Response messeage to RAClient Failed! ======\n");
+				if (0 != sendMessage(client_fd, strMyIP,strRemoteIP, ERROR_READDATA, 0,NULL)) {
+					printf("====== Send Response message to Server Failed! ======\n");
 					close(client_fd);
 					exit(0);
 					continue;
@@ -835,7 +830,7 @@ int loopMode()
 				exit(0);
 				continue;
 			} else {
-				
+				// printf("", strRemoteIP);
 			}
 			
 			// Process based on requested connection type from server.
@@ -845,7 +840,7 @@ int loopMode()
 				case COMM_REQ_CONNECT:
 					printf("\n--> --> Received a connection from: Head Unit\n"); // 
 					if (0 != sendMessage(client_fd, strMyIP,strRemoteIP, COMM_RSP_ALLOW, 0, NULL)) {
-						printf("====== Send Response messeage to RAClient Failed! ======\n");
+						printf("====== Send Response message to Server Failed! ======\n");
 						close(client_fd);
 						exit(0);
 						continue;
@@ -862,15 +857,15 @@ int loopMode()
 					
 					break;
 				
-				// Quote confimation success on server side.
+				// Quote confirmation success on server side.
 				case COMM_QUOTE_SUCCESS:
 					printf("===== Received message from HEAD UNIT: Quote Success! =====\n");
 					
 					break;
 				
-				// Quote confimation failed on server side.
+				// Quote confirmation failed on server side.
 				case COMM_QUOTE_FAILED:
-					printf("=====  Server sed that Quote failed =====\n");
+					printf("=====  Server said that Quote failed =====\n");
 					
 					break;
 					
@@ -880,7 +875,7 @@ int loopMode()
 			// Close the connection session to the server.
 			close(client_fd);
 			exit(0);
-		} // else 
+		} // Else 
 		
 	} // While
 	
@@ -893,9 +888,9 @@ int loopMode()
 int main(void) {
 	
 	int				clientfd;				// Connection session id with server
-	char			serverIP[16] = {0};		// Server ip address
-	char			tpmClientIP[16] = {0};	// TPM Client ip address
-	int				serverport = 3333;		
+	char			serverIP[16] = {0};		// Server IP address
+	char			tpmClientIP[16] = {0};	// TPM Client IP address
+	int				serverport = SERVERPORT;		
 	int				dwStatus = 0;		
 	int				dwTransLength = 0;	
 	char			*buffer = NULL;		// Received data from the server
@@ -904,13 +899,13 @@ int main(void) {
 	unsigned char	*aik;				// AIK blob
 	int				aikLen;				// AIK length
 	FILE			*testFile;
-	int				quoteLen;			// Quote lenght
+	int				quoteLen;			// Quote length
 	unsigned char * quoteBuf;			// Quote data
 	int				i;					// For loop iteration count
 	int				bufLen;				//
 	unsigned char	*buf;				
 	
-	// IPs to copy. This need to be done evry time when new connection is made to the server.
+	// IPs to copy. This need to be done every time when new connection is made to the server.
 	// Some reason these will be cleared when connection session is closed.
 	strcpy(tpmClientIP, myIP);
 	strcpy(serverIP, destIP);
@@ -951,7 +946,7 @@ int main(void) {
 		printf("===== Connect to HEAD UNIT Failed =====\n");
 	}
 	
-	// Checks has the TPM Client done Enrollment before. 
+	// Checks has the TPM Client done Enrolment before. 
 	FILE *enrolled;
 	if((enrolled = fopen("ennrolledAIKdone", "rb")) != NULL) {
 		fseek (enrolled, 0, SEEK_END);
@@ -991,9 +986,9 @@ int main(void) {
 			
 			// Send public AIK to HEAD UNIT
 			if (0 != (dwStatus = sendMessage(clientfd, tpmClientIP, serverIP, COMM_PUB_AIK_ENROLLMENT, bufLen, buf))) {
-				printf("===== Send AIK messeage to HEAD UNIT Failed! =====\n");
+				printf("===== Send AIK message to HEAD UNIT Failed! =====\n");
 			} else {
-				printf("===== Send Messeage to HEAD UNIT: Enroll Public AIK =====\n");
+				printf("===== Send Message to HEAD UNIT: Enroll Public AIK =====\n");
 			}
 			
 		} else {
@@ -1013,9 +1008,9 @@ int main(void) {
 		
 		// Send turn on message
 		if (0 != (dwStatus = sendMessage(clientfd, tpmClientIP, serverIP, COMM_TURNED_ON, 0, NULL))) {
-			printf("===== Send AIK messeage to HEAD UNIT Failed! =====\n");
+			printf("===== Send AIK message to HEAD UNIT Failed! =====\n");
 		} else {
-			printf("\n===== Send Messeage to HEAD UNIT: Turned on =====\n");
+			printf("\n===== Send Message to HEAD UNIT: Turned on =====\n");
 		}
 	}
 	
@@ -1033,7 +1028,7 @@ int main(void) {
 		printf("===== Received message from HEAD UNIT: Challenge requested =====\n");
 		
 		// Produce TPM quote
-		// quoteBuff is not atm used because quote data will broke if it is copyed to new location.
+		// quoteBuff is not atm used because quote data will broke if it is copied to new location.
 		// There for quote is saved to the file in quote-function and read from there in this function.
 		if(0 == quote(dwTransLength, buffer, &quoteLen, &quoteBuf)) {
 			
@@ -1063,9 +1058,9 @@ int main(void) {
 			
 			// Send quote to the server
 			if (0 != (dwStatus = sendMessage(clientfd, tpmClientIP, serverIP, COMM_RSP_CHALLENGE, strlen(buf_str), buf_str))) {
-				printf("===== Send Quote messeage to HEAD UNIT Failed! =====\n");
+				printf("===== Send Quote message to HEAD UNIT Failed! =====\n");
 			} else {
-				printf("\n===== Send Messeage to HEAD UNIT: Quote result =====\n");
+				printf("\n===== Send Message to HEAD UNIT: Quote result =====\n");
 			}
 			free(buf_str);
 			
@@ -1074,11 +1069,11 @@ int main(void) {
 				printf("===== Received message from HEAD UNIT Failed! =====\n");
 			}
 			
-			// Checks did quote confimation success on server side.
+			// Checks did quote confirmation success on server side.
 			if(type == COMM_QUOTE_SUCCESS) {
 				printf("===== Received message from HEAD UNIT: Quote Success! =====\n");
 			} else if (type == COMM_QUOTE_FAILED) {
-				printf("Server sed that Quote failed\n");
+				printf("Server said that Quote failed\n");
 			} else {
 				printf("Quote confirmation failed on server side\n");
 			}
